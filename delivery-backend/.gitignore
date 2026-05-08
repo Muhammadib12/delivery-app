@@ -1,0 +1,12 @@
+node_modules
+dist
+
+# Environment — never commit secrets
+.env
+.env.local
+.env.production
+.env.test
+
+/generated/prisma
+prisma/migrations/dev.db
+

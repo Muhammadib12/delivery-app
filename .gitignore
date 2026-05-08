@@ -1,0 +1,30 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build output
+dist/
+build/
+
+# Environment files — never commit secrets
+.env
+.env.local
+.env.production
+.env.test
+
+# Prisma generated
+/generated/prisma
+prisma/migrations/dev.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/

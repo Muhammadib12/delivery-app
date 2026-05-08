@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kdel — Design System & Customer Flow</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root { color-scheme: light dark; }
+  html, body, #root { margin: 0; padding: 0; height: 100%; font-family: 'Inter', -apple-system, system-ui, sans-serif; }
+  body { background: #f0eee9; }
+  * { box-sizing: border-box; }
+  button { font-family: inherit; }
+  /* Hide scrollbars on horizontal carousels */
+  [style*="scrollbar-width: none"]::-webkit-scrollbar { display: none; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<script src="tokens.js"></script>
+
+<script type="text/babel" src="design-canvas.jsx"></script>
+<script type="text/babel" src="tweaks-panel.jsx"></script>
+<script type="text/babel" src="icons.jsx"></script>
+<script type="text/babel" src="logo.jsx"></script>
+<script type="text/babel" src="food-img.jsx"></script>
+<script type="text/babel" src="ui.jsx"></script>
+<script type="text/babel" src="screens-home.jsx"></script>
+<script type="text/babel" src="screens-restaurant.jsx"></script>
+<script type="text/babel" src="screens-cart.jsx"></script>
+<script type="text/babel" src="screens-tracking.jsx"></script>
+<script type="text/babel" src="design-system-page.jsx"></script>
+
+<script type="text/babel" data-presets="env,react">
+const { useState, useEffect, useRef, useMemo } = React;
+
+// ===== Phone shell — minimal device frame =====
+const PhoneShell = ({ mode, children }) => {
+  const t = window.KdelTokens[mode];
+  const bezel = mode === 'dark' ? '#0a0c12' : '#0e1018';
+  return (
+    <div style={{
+      width: 390, height: 844, borderRadius: 48,
+      background: bezel,
+      padding: 10,
+      boxShadow: mode === 'dark'
+        ? '0 30px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.06) inset'
+        : '0 30px 80px rgba(20,30,50,0.18), 0 0 0 1px rgba(255,255,255,0.05) inset',
+      position: 'relative',
+    }}>
+      <div style={{
+        width: '100%', height: '100%', borderRadius: 38,
+        background: t.bg, overflow: 'hidden', position: 'relative',
+      }}>
+        {/* Status bar */}
+        <div style={{
+          position: 'absolute', top: 0, left: 0, right: 0, height: 44,
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '0 28px', zIndex: 100,
+          color: t.text, fontSize: 14, fontWeight: 600,
+          fontVariantNumeric: 'tabular-nums', pointerEvents: 'none',
+        }}>
+          <span>9:41</span>
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 12 }}>
+            <span style={{ letterSpacing: 1 }}>●●●●●</span>
+            <svg width="16" height="11" viewBox="0 0 16 11" fill="none">
+              <path d="M0 6 Q8 -2 16 6" stroke={t.text} strokeWidth="1.5" strokeLinecap="round"/>
+              <path d="M3 8 Q8 2 13 8" stroke={t.text} strokeWidth="1.5" strokeLinecap="round"/>
+              <circle cx="8" cy="9.5" r="1" fill={t.text}/>
+            </svg>
+            <div style={{
+              width: 24, height: 11, borderRadius: 3,
+              border: `1.2px solid ${t.text}`, opacity: 0.6, position: 'relative',
+            }}>
+              <div style={{
+                position: 'absolute', top: 1.5, left: 1.5, bottom: 1.5, width: '78%',
+                background: t.text, borderRadius: 1.5,
+              }}/>
+            </div>
+          </div>
+        </div>
+        {/* Notch */}
+        <div style={{
+          position: 'absolute', top: 8, left: '50%', transform: 'translateX(-50%)',
+          width: 122, height: 32, borderRadius: 20, background: '#000', zIndex: 200,
+        }}/>
+        {/* Content */}
+        <div style={{ height: '100%', overflow: 'hidden' }}>
+          <ThemeProvider mode={mode}>{children}</ThemeProvider>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ===== Customer flow prototype state machine =====
+const CustomerFlow = ({ mode, rtl, offline, startScreen = 'home' }) => {
+  const t = window.KdelTokens[mode];
+  const [screen, setScreen] = useState(startScreen);
+  const [restaurant, setRestaurant] = useState(window.RESTAURANTS[0]);
+  const [productSheet, setProductSheet] = useState(null);
+  const [cart, setCart] = useState([]);
+  const [placing, setPlacing] = useState(false);
+  const [trackingStep, setTrackingStep] = useState(2);
+
+  // auto-advance order when tracking
+  useEffect(() => {
+    if (screen !== 'tracking') return;
+    const id = setInterval(() => setTrackingStep(s => Math.min(s + 1, 5)), 5000);
+    return () => clearInterval(id);
+  }, [screen]);
+
+  const cartCount = cart.reduce((s, i) => s + i.qty, 0);
+  const cartTotal = cart.reduce((s, i) => s + i.total, 0);
+
+  const addToCart = (item) => {
+    setCart(c => [...c, item]);
+    setProductSheet(null);
+  };
+  const placeOrder = () => {
+    setPlacing(true);
+    setTimeout(() => {
+      setPlacing(false);
+      setScreen('confirmation');
+    }, 1200);
+  };
+
+  return (
+    <div style={{ height: '100%', position: 'relative' }}>
+      {screen === 'home' && (
+        <HomeScreen
+          onOpenRestaurant={(r) => { setRestaurant(r); setScreen('restaurant'); }}
+          onOpenCart={() => setScreen('cart')}
+          cartCount={cartCount}
+          onTab={(tab) => { if (tab === 'orders') setScreen('tracking'); }}
+          offline={offline}
+          rtl={rtl}
+        />
+      )}
+      {screen === 'restaurant' && (
+        <RestaurantScreen
+          restaurant={restaurant}
+          onBack={() => setScreen('home')}
+          onAddProduct={(p) => setProductSheet(p)}
+          cartCount={cartCount}
+          cartTotal={cartTotal}
+          onOpenCart={() => setScreen('cart')}
+          offline={offline}
+          rtl={rtl}
+        />
+      )}
+      {screen === 'cart' && (
+        <CartScreen
+          items={cart}
+          restaurant={restaurant}
+          onBack={() => setScreen('restaurant')}
+          onCheckout={() => setScreen('checkout')}
+          onUpdateQty={(i, q) => setCart(c => c.map((it, idx) => idx === i ? { ...it, qty: q, total: (it.total / it.qty) * q } : it))}
+          onRemove={(i) => setCart(c => c.filter((_, idx) => idx !== i))}
+          rtl={rtl}
+        />
+      )}
+      {screen === 'checkout' && (
+        <CheckoutScreen
+          subtotal={cartTotal}
+          onBack={() => setScreen('cart')}
+          onPlaceOrder={placeOrder}
+          placing={placing}
+          rtl={rtl}
+        />
+      )}
+      {screen === 'confirmation' && (
+        <ConfirmationScreen
+          orderId="#KD-20260507-0142"
+          onTrack={() => { setTrackingStep(2); setScreen('tracking'); }}
+          onHome={() => { setCart([]); setScreen('home'); }}
+          rtl={rtl}
+        />
+      )}
+      {screen === 'tracking' && (
+        <TrackingScreen
+          orderId="KD-20260507-0142"
+          statusIndex={trackingStep}
+          onBack={() => setScreen('home')}
+          onMap={() => setScreen('drivermap')}
+          offline={offline}
+          rtl={rtl}
+        />
+      )}
+      {screen === 'drivermap' && (
+        <DriverMapScreen
+          onBack={() => setScreen('tracking')}
+          eta={Math.max(2, 12 - trackingStep)}
+          offline={offline}
+          rtl={rtl}
+        />
+      )}
+      {productSheet && (
+        <ProductSheet
+          product={productSheet}
+          onClose={() => setProductSheet(null)}
+          onAdd={addToCart}
+          rtl={rtl}
+        />
+      )}
+    </div>
+  );
+};
+
+const STATIC_FLOW_SCREENS = [
+  { key: 'home', label: '01 · Home' },
+  { key: 'restaurant', label: '02 · Restaurant' },
+  { key: 'product', label: '03 · Product sheet' },
+  { key: 'cart', label: '04 · Cart' },
+  { key: 'checkout', label: '05 · Checkout' },
+  { key: 'confirmation', label: '06 · Confirmation' },
+  { key: 'tracking', label: '07 · Order tracking' },
+  { key: 'drivermap', label: '08 · Driver live map' },
+];
+
+// Static (non-interactive) per-screen renderers — used for the canvas
+// where each screen is a frozen example.
+const StaticScreen = ({ screen, mode, rtl, offline, restaurant }) => {
+  const t = window.KdelTokens[mode];
+  const r = restaurant || window.RESTAURANTS[0];
+  const cartItems = [
+    { ...window.PRODUCTS.r1[0], img: 'grills', qty: 1, size: 'm', total: 94, extras: { sauce: true } },
+    { ...window.PRODUCTS.r1[6], img: 'drinks', qty: 1, size: 'm', total: 14, extras: {} },
+  ];
+  const cartTotal = cartItems.reduce((s, i) => s + i.total, 0);
+  switch (screen) {
+    case 'home':
+      return <HomeScreen onOpenRestaurant={() => {}} onOpenCart={() => {}} cartCount={0} onTab={() => {}} offline={offline} rtl={rtl}/>;
+    case 'restaurant':
+      return <RestaurantScreen restaurant={r} onBack={() => {}} onAddProduct={() => {}} cartCount={0} cartTotal={0} onOpenCart={() => {}} offline={offline} rtl={rtl}/>;
+    case 'product':
+      return (
+        <div style={{ height: '100%', position: 'relative' }}>
+          <RestaurantScreen restaurant={r} onBack={() => {}} onAddProduct={() => {}} cartCount={0} cartTotal={0} onOpenCart={() => {}} offline={offline} rtl={rtl}/>
+          <ProductSheet product={window.PRODUCTS.r1[0]} onClose={() => {}} onAdd={() => {}} rtl={rtl}/>
+        </div>
+      );
+    case 'cart':
+      return <CartScreen items={cartItems} restaurant={r} onBack={() => {}} onCheckout={() => {}} onUpdateQty={() => {}} onRemove={() => {}} rtl={rtl}/>;
+    case 'checkout':
+      return <CheckoutScreen subtotal={cartTotal} onBack={() => {}} onPlaceOrder={() => {}} placing={false} rtl={rtl}/>;
+    case 'confirmation':
+      return <ConfirmationScreen orderId="#KD-20260507-0142" onTrack={() => {}} onHome={() => {}} rtl={rtl}/>;
+    case 'tracking':
+      return <TrackingScreen orderId="KD-20260507-0142" statusIndex={2} onBack={() => {}} onMap={() => {}} offline={offline} rtl={rtl}/>;
+    case 'drivermap':
+      return <DriverMapScreen onBack={() => {}} eta={8} offline={offline} rtl={rtl}/>;
+    default: return null;
+  }
+};
+
+// ===== Main app =====
+const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+  "mode": "light",
+  "showOffline": false,
+  "rtlPreview": false,
+  "primaryHue": 142
+}/*EDITMODE-END*/;
+
+const App = () => {
+  const tweaks = useKdelTweaks(TWEAK_DEFAULTS);
+
+  return (
+    <DesignCanvas>
+      {/* === Section 0: Cover === */}
+      <DCSection id="cover" title="Kdel — Design System & Customer Flow" subtitle="First pass: foundations + 8 hero screens. Each screen is delivered in light + dark mode. Drag any frame open with ⤢ to focus.">
+        <DCArtboard id="prototype" label="Live prototype · Light → tap through" width={420} height={900}>
+          <PhoneShell mode="light">
+            <CustomerFlow mode="light" rtl={tweaks.rtlPreview} offline={tweaks.showOffline}/>
+          </PhoneShell>
+        </DCArtboard>
+        <DCArtboard id="prototype-dark" label="Live prototype · Dark" width={420} height={900}>
+          <PhoneShell mode="dark">
+            <CustomerFlow mode="dark" rtl={tweaks.rtlPreview} offline={tweaks.showOffline}/>
+          </PhoneShell>
+        </DCArtboard>
+        <DCPostIt>
+          <b>How to use:</b><br/>
+          1. The first two artboards above are <b>fully interactive</b> — tap restaurants, add to cart, place an order, watch the driver move on the map.<br/><br/>
+          2. The sections below show every screen in <b>light + dark</b> side-by-side as static frames.<br/><br/>
+          3. Open the <b>Tweaks</b> panel to toggle the offline banner, RTL preview, and other knobs.
+        </DCPostIt>
+      </DCSection>
+
+      {/* === Section 1: Design system foundations === */}
+      <DCSection id="ds-light" title="Design system · Light" subtitle="Colors, type, spacing, components.">
+        <DCArtboard id="ds-light" label="Foundations & components" width={1280} height={2400}>
+          <DSPage mode="light"/>
+        </DCArtboard>
+      </DCSection>
+      <DCSection id="ds-dark" title="Design system · Dark" subtitle="Glow-tinted shadows, brighter primary, never pure black.">
+        <DCArtboard id="ds-dark" label="Foundations & components" width={1280} height={2400}>
+          <DSPage mode="dark"/>
+        </DCArtboard>
+      </DCSection>
+
+      {/* === Section 2: Customer hero flow — light vs dark === */}
+      {STATIC_FLOW_SCREENS.map(s => (
+        <DCSection key={s.key} id={`flow-${s.key}`} title={s.label} subtitle={SCREEN_NOTES[s.key]}>
+          <DCArtboard id={`${s.key}-light`} label="Light" width={420} height={900}>
+            <PhoneShell mode="light"><StaticScreen screen={s.key} mode="light" offline={tweaks.showOffline} rtl={tweaks.rtlPreview}/></PhoneShell>
+          </DCArtboard>
+          <DCArtboard id={`${s.key}-dark`} label="Dark" width={420} height={900}>
+            <PhoneShell mode="dark"><StaticScreen screen={s.key} mode="dark" offline={tweaks.showOffline} rtl={tweaks.rtlPreview}/></PhoneShell>
+          </DCArtboard>
+          {SCREEN_POSTITS[s.key] && <DCPostIt>{SCREEN_POSTITS[s.key]}</DCPostIt>}
+        </DCSection>
+      ))}
+
+      {/* === Section 3: RTL proof of concept === */}
+      <DCSection id="rtl" title="RTL proof of concept" subtitle="Hebrew/Arabic layout — direction flips, currency stays before amount, status chips and tap targets unchanged.">
+        <DCArtboard id="rtl-home" label="Home · ar" width={420} height={900}>
+          <PhoneShell mode="light"><StaticScreen screen="home" mode="light" rtl={true}/></PhoneShell>
+        </DCArtboard>
+        <DCArtboard id="rtl-restaurant" label="Restaurant · ar" width={420} height={900}>
+          <PhoneShell mode="light"><StaticScreen screen="restaurant" mode="light" rtl={true}/></PhoneShell>
+        </DCArtboard>
+        <DCArtboard id="rtl-tracking" label="Tracking · ar (dark)" width={420} height={900}>
+          <PhoneShell mode="dark"><StaticScreen screen="tracking" mode="dark" rtl={true}/></PhoneShell>
+        </DCArtboard>
+        <DCPostIt>
+          <b>RTL notes:</b> The whole layout flips via <code>dir="rtl"</code>. Numerals (₪89.00, 1.4 km, 25 min) stay LTR by virtue of <code>fontVariantNumeric: tabular-nums</code> + Latin glyphs. Status chip icons mirror naturally because they're positioned with flexbox + gap.<br/><br/>
+          The header here uses Arabic placeholder copy for proof of concept. Production will localize the full string catalog and add Hebrew.
+        </DCPostIt>
+      </DCSection>
+
+      {/* === Section 4: Offline & edge states === */}
+      <DCSection id="states" title="Offline & error states" subtitle="Every tracking-related screen handles loss of connection without losing context.">
+        <DCArtboard id="offline-home" label="Home · offline banner" width={420} height={900}>
+          <PhoneShell mode="light"><StaticScreen screen="home" mode="light" offline={true}/></PhoneShell>
+        </DCArtboard>
+        <DCArtboard id="offline-tracking" label="Tracking · last known status" width={420} height={900}>
+          <PhoneShell mode="light"><StaticScreen screen="tracking" mode="light" offline={true}/></PhoneShell>
+        </DCArtboard>
+        <DCArtboard id="offline-map" label="Driver map · stale location" width={420} height={900}>
+          <PhoneShell mode="dark"><StaticScreen screen="drivermap" mode="dark" offline={true}/></PhoneShell>
+        </DCArtboard>
+      </DCSection>
+
+      {/* === Section 5: Roadmap === */}
+      <DCSection id="next" title="Next up" subtitle="What to build after this pass lands.">
+        <DCPostIt>
+          <b>Customer app — remaining 12 screens</b><br/>
+          Splash · Onboarding × 3 · Login · OTP · Restaurant list · Search · Address list · Add address · Order history · Notifications · Profile
+        </DCPostIt>
+        <DCPostIt>
+          <b>Restaurant app</b><br/>
+          10 screens × light/dark = 20 frames. Dashboard, incoming order, prep flow, menu CRUD, hours, earnings.
+        </DCPostIt>
+        <DCPostIt>
+          <b>Driver app</b><br/>
+          12 screens × light/dark = 24 frames. Online/offline, request overlay, navigate-to-restaurant, navigate-to-customer, completion, earnings.
+        </DCPostIt>
+        <DCPostIt>
+          <b>Admin web</b><br/>
+          10 pages × light/dark = 20 frames at 1440 wide. Live map, orders table, drivers approval, settings, audit logs.
+        </DCPostIt>
+      </DCSection>
+
+      {tweaks.__panel}
+    </DesignCanvas>
+  );
+};
+
+const SCREEN_NOTES = {
+  home: 'Browse — categories, featured carousel, full restaurant list. Floating cart appears once items are added.',
+  restaurant: 'Hero banner with overlapping logo card. Sticky category scroll. Two-column product grid.',
+  product: 'Bottom sheet with required size, optional extras, special instructions. Total updates live.',
+  cart: 'Items with inline qty stepper. Swipe-to-delete. Order notes. Sticky CTA at bottom.',
+  checkout: 'Address card with default badge. Collapsed summary that expands. Payment options. Card method is locked with a clear "coming soon" affordance.',
+  confirmation: 'Single-purpose celebration screen. Animated check, order id, ETA, status note. Two clear next actions.',
+  tracking: 'ETA hero card · driver card · vertical timeline. Cancel only allowed in PENDING_RESTAURANT. Cancel CTA hides at later steps.',
+  drivermap: 'Full-bleed map. Animated route + driver bob. Bottom sheet with ETA, vehicle plate, one-tap call.',
+};
+
+const SCREEN_POSTITS = {
+  home: 'Floating cart hovers above bottom nav so it never blocks navigation. The order pill carries item count + total in one tap.',
+  product: 'Required vs Optional is signaled by a tiny REQUIRED chip + label, not by colored borders. Total updates as the user picks.',
+  tracking: 'Timeline uses three states: ✓ filled green for done, pulsing dot for active, dashed line + outline for pending. Driver card slides in only after DRIVER_ASSIGNED.',
+  drivermap: 'Tweak suggestion (flagged): merge tracking & driver-map into a single screen with an expand/collapse map — fewer taps, less context loss. Spec calls for two screens; both are designed.',
+};
+
+// ===== Tweaks panel wrapper =====
+function useKdelTweaks(defaults) {
+  const [t, setT] = window.useTweaks(defaults);
+  return {
+    ...t,
+    __panel: (
+      <TweaksPanel title="Tweaks">
+        <TweakSection title="Edge states">
+          <TweakToggle label="Show offline banner" value={t.showOffline} onChange={v => setT('showOffline', v)}/>
+          <TweakToggle label="RTL (Arabic) layout" value={t.rtlPreview} onChange={v => setT('rtlPreview', v)}/>
+        </TweakSection>
+      </TweaksPanel>
+    ),
+  };
+}
+
+window.useKdelTweaks = useKdelTweaks;
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>
