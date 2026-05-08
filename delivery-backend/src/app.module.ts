@@ -9,6 +9,7 @@ import redisConfig from './config/redis.config';
 import jwtConfig from './config/jwt.config';
 import smsConfig from './config/sms.config';
 import firebaseConfig from './config/firebase.config';
+import cloudinaryConfig from './config/cloudinary.config';
 
 import { PrismaModule } from './prisma/prisma.module';
 import { RedisModule } from './redis/redis.module';
@@ -24,6 +25,7 @@ import { DeliveryModule } from './modules/delivery/delivery.module';
 import { RealtimeModule } from './modules/realtime/realtime.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { AdminModule } from './modules/admin/admin.module';
+import { UploadModule } from './modules/upload/upload.module';
 
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
@@ -39,6 +41,7 @@ import { RolesGuard } from './common/guards/roles.guard';
         jwtConfig,
         smsConfig,
         firebaseConfig,
+        cloudinaryConfig,
       ],
     }),
     ThrottlerModule.forRoot([
@@ -62,6 +65,7 @@ import { RolesGuard } from './common/guards/roles.guard';
     RealtimeModule,
     NotificationsModule,
     AdminModule,
+    UploadModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },
