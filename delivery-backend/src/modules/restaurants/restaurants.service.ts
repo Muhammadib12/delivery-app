@@ -283,4 +283,88 @@ export class RestaurantsService {
       restaurantStatus: restaurant?.status,
     };
   }
+
+  // ─── Working Hours ────────────────────────────────────────────────────────
+
+  async getWorkingHours(restaurantId: string) {
+    const hours = await this.prisma.restaurantWorkingHour.findMany({
+      where: { restaurantId },
+      orderBy: { dayOfWeek: 'asc' },
+    });
+
+    // Return all 7 days — fill missing days with defaults
+    const days = [0, 1, 2, 3, 4, 5, 6];
+    return days.map((day) => {
+      const found = hours.find((h) => h.dayOfWeek === day);
+      return (
+        found ?? {
+          restaurantId,
+          dayOfWeek: day,
+          openTime: '09:00',
+          closeTime: '22:00',
+          isClosed: false,
+        }
+      );
+    });
+  }
+
+  async updateAllWorkingHours(
+    restaurantId: string,
+    days: Array<{
+      dayOfWeek: number;
+      openTime: string;
+      closeTime: string;
+      isClosed: boolean;
+    }>,
+  ) {
+    await this.prisma.$transaction(
+      days.map((day) =>
+        this.prisma.restaurantWorkingHour.upsert({
+          where: {
+            uq_restaurant_working_hours_day: {
+              restaurantId,
+              dayOfWeek: day.dayOfWeek,
+            },
+          },
+          update: {
+            openTime: day.openTime,
+            closeTime: day.closeTime,
+            isClosed: day.isClosed,
+          },
+          create: {
+            restaurantId,
+            dayOfWeek: day.dayOfWeek,
+            openTime: day.openTime,
+            closeTime: day.closeTime,
+            isClosed: day.isClosed,
+          },
+        }),
+      ),
+    );
+
+    return this.getWorkingHours(restaurantId);
+  }
+
+  async updateOneDay(
+    restaurantId: string,
+    day: number,
+    data: { openTime?: string; closeTime?: string; isClosed?: boolean },
+  ) {
+    return this.prisma.restaurantWorkingHour.upsert({
+      where: {
+        uq_restaurant_working_hours_day: {
+          restaurantId,
+          dayOfWeek: day,
+        },
+      },
+      update: data,
+      create: {
+        restaurantId,
+        dayOfWeek: day,
+        openTime: data.openTime ?? '09:00',
+        closeTime: data.closeTime ?? '22:00',
+        isClosed: data.isClosed ?? false,
+      },
+    });
+  }
 }

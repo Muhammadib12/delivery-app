@@ -6,8 +6,21 @@ import {
   Body,
   Param,
   Query,
+  ParseIntPipe,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiQuery, ApiTags } from '@nestjs/swagger';
+import {
+  IsInt,
+  IsString,
+  IsBoolean,
+  IsOptional,
+  IsArray,
+  ValidateNested,
+  Min,
+  Max,
+  Matches,
+} from 'class-validator';
+import { Type } from 'class-transformer';
 import { RestaurantsService } from './restaurants.service';
 import { MenuService } from '../menu/menu.service';
 import { Public } from '../../common/decorators/public.decorator';
@@ -16,6 +29,28 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { JwtPayload } from '../../common/types/jwt-payload.type';
 import { UpdateRestaurantDto } from './dto/update-restaurant.dto';
 import { UpdateStatusDto } from './dto/update-status.dto';
+
+// ─── Working Hours DTOs ───────────────────────────────────────────────────────
+
+class WorkingHourDayDto {
+  @IsInt() @Min(0) @Max(6) dayOfWeek: number;
+  @IsString() @Matches(/^\d{2}:\d{2}$/) openTime: string;
+  @IsString() @Matches(/^\d{2}:\d{2}$/) closeTime: string;
+  @IsBoolean() isClosed: boolean;
+}
+
+class UpdateAllWorkingHoursDto {
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => WorkingHourDayDto)
+  days: WorkingHourDayDto[];
+}
+
+class UpdateOneDayDto {
+  @IsOptional() @IsString() @Matches(/^\d{2}:\d{2}$/) openTime?: string;
+  @IsOptional() @IsString() @Matches(/^\d{2}:\d{2}$/) closeTime?: string;
+  @IsOptional() @IsBoolean() isClosed?: boolean;
+}
 
 @ApiTags('Restaurants')
 @ApiBearerAuth('access-token')
@@ -85,6 +120,35 @@ export class RestaurantsController {
   getDashboard(@CurrentUser() user: JwtPayload) {
     return this.service.getDashboard(user.restaurantId!);
   }
+
+  // ─── Working Hours ──────────────────────────────────────────────────────────
+
+  @Roles('RESTAURANT_OWNER', 'RESTAURANT_STAFF')
+  @Get('me/working-hours')
+  getWorkingHours(@CurrentUser() user: JwtPayload) {
+    return this.service.getWorkingHours(user.restaurantId!);
+  }
+
+  @Roles('RESTAURANT_OWNER')
+  @Put('me/working-hours')
+  updateAllWorkingHours(
+    @CurrentUser() user: JwtPayload,
+    @Body() dto: UpdateAllWorkingHoursDto,
+  ) {
+    return this.service.updateAllWorkingHours(user.restaurantId!, dto.days);
+  }
+
+  @Roles('RESTAURANT_OWNER')
+  @Patch('me/working-hours/:day')
+  updateOneDay(
+    @CurrentUser() user: JwtPayload,
+    @Param('day', ParseIntPipe) day: number,
+    @Body() dto: UpdateOneDayDto,
+  ) {
+    return this.service.updateOneDay(user.restaurantId!, day, dto);
+  }
+
+  // ─── Public ─────────────────────────────────────────────────────────────────
 
   @Public()
   @Get(':restaurantId/menu')
