@@ -284,6 +284,106 @@ export class RestaurantsService {
     };
   }
 
+  // ─── Earnings ─────────────────────────────────────────────────────────────
+
+  async getEarnings(restaurantId: string, period: 'today' | 'week' | 'month') {
+    const now = new Date();
+
+    const from = new Date(now);
+    if (period === 'today') {
+      from.setHours(0, 0, 0, 0);
+    } else if (period === 'week') {
+      from.setDate(now.getDate() - 6);
+      from.setHours(0, 0, 0, 0);
+    } else {
+      from.setDate(1);
+      from.setHours(0, 0, 0, 0);
+    }
+
+    const orders = await this.prisma.order.findMany({
+      where: {
+        restaurantId,
+        status: 'DELIVERED',
+        createdAt: { gte: from },
+        deletedAt: null,
+      },
+      select: {
+        id: true,
+        subtotal: true,
+        deliveryFee: true,
+        total: true,
+        createdAt: true,
+      },
+    });
+
+    // Commission rate for this restaurant
+    const commission = await this.prisma.commission.findFirst({
+      where: {
+        restaurantId,
+        isActive: true,
+        effectiveFrom: { lte: now },
+        OR: [{ effectiveTo: null }, { effectiveTo: { gte: now } }],
+      },
+    });
+
+    // Fallback to platform default rate
+    const setting = await this.prisma.platformSetting.findUnique({
+      where: { key: 'commission_rate_default' },
+    });
+    const commissionRate = commission?.rate
+      ? Number(commission.rate)
+      : Number(setting?.value ?? 15);
+
+    // Calculate totals
+    let totalSales = 0;
+    let totalCommission = 0;
+    let totalOrders = orders.length;
+
+    const dailyMap: Record<string, { orders: number; sales: number; net: number }> = {};
+
+    for (const order of orders) {
+      const subtotal = Number(order.subtotal);
+      const commissionAmount = (subtotal * commissionRate) / 100;
+      const net = subtotal - commissionAmount;
+
+      totalSales += subtotal;
+      totalCommission += commissionAmount;
+
+      const dayKey = order.createdAt.toISOString().split('T')[0];
+      if (!dailyMap[dayKey]) {
+        dailyMap[dayKey] = { orders: 0, sales: 0, net: 0 };
+      }
+      dailyMap[dayKey].orders += 1;
+      dailyMap[dayKey].sales += subtotal;
+      dailyMap[dayKey].net += net;
+    }
+
+    const totalNet = totalSales - totalCommission;
+
+    const daily = Object.entries(dailyMap)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, data]) => ({
+        date,
+        orders: data.orders,
+        sales: Math.round(data.sales * 100) / 100,
+        net: Math.round(data.net * 100) / 100,
+      }));
+
+    return {
+      period,
+      from: from.toISOString(),
+      to: now.toISOString(),
+      commissionRate,
+      summary: {
+        totalOrders,
+        totalSales: Math.round(totalSales * 100) / 100,
+        totalCommission: Math.round(totalCommission * 100) / 100,
+        totalNet: Math.round(totalNet * 100) / 100,
+      },
+      daily,
+    };
+  }
+
   // ─── Working Hours ────────────────────────────────────────────────────────
 
   async getWorkingHours(restaurantId: string) {

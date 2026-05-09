@@ -121,6 +121,23 @@ export class RestaurantsController {
     return this.service.getDashboard(user.restaurantId!);
   }
 
+  @Roles('RESTAURANT_OWNER', 'RESTAURANT_STAFF')
+  @Get('me/earnings')
+  @ApiQuery({
+    name: 'period',
+    required: false,
+    enum: ['today', 'week', 'month'],
+    description: 'Default: today',
+  })
+  getEarnings(
+    @CurrentUser() user: JwtPayload,
+    @Query('period') period?: string,
+  ) {
+    const validPeriod =
+      period === 'week' || period === 'month' ? period : 'today';
+    return this.service.getEarnings(user.restaurantId!, validPeriod);
+  }
+
   // ─── Working Hours ──────────────────────────────────────────────────────────
 
   @Roles('RESTAURANT_OWNER', 'RESTAURANT_STAFF')
